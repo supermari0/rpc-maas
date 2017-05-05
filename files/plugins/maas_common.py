@@ -46,97 +46,6 @@ AUTH_DETAILS = {'OS_USERNAME': None,
 OPENRC = '/root/openrc-maas'
 TOKEN_FILE = '/root/.auth_ref.json'
 
-
-try:
-    from cinderclient import client as c_client
-    from cinderclient import exceptions as c_exc
-
-except ImportError:
-    def get_cinder_client(*args, **kwargs):
-        status_err('Cannot import cinderclient')
-else:
-
-    def get_cinder_client(previous_tries=0):
-        if previous_tries > 3:
-            return None
-        # right now, cinderclient does not accept a previously derived token
-        # or endpoint url. So we have to pass it creds and let it do it's own
-        # auth each time it's called.
-        # NOTE: (mancdaz) update when https://review.openstack.org/#/c/74602/
-        # lands
-
-        auth_details = get_auth_details()
-        cinder = c_client.Client('2',
-                                 auth_details['OS_USERNAME'],
-                                 auth_details['OS_PASSWORD'],
-                                 auth_details['OS_TENANT_NAME'],
-                                 auth_details['OS_AUTH_URL'],
-                                 insecure=auth_details['OS_API_INSECURE'],
-                                 endpoint_type=auth_details[
-                                     'OS_ENDPOINT_TYPE'])
-
-        try:
-            # Do something just to ensure we actually have auth'd ok
-            volumes = cinder.volumes.list()
-            # Exceptions are only thrown when we iterate over volumes
-            [i.id for i in volumes]
-        except (c_exc.Unauthorized, c_exc.AuthorizationFailure) as e:
-            cinder = get_cinder_client(previous_tries + 1)
-        except Exception as e:
-            status_err(str(e))
-
-        return cinder
-
-try:
-    import glanceclient as g_client
-    from glanceclient import exc as g_exc
-except ImportError:
-    def get_glance_client(*args, **kwargs):
-        status_err('Cannot import glanceclient')
-else:
-    def get_glance_client(token=None, endpoint=None, previous_tries=0):
-        if previous_tries > 3:
-            return None
-
-        # first try to use auth details from auth_ref so we
-        # don't need to auth with keystone every time
-        auth_ref = get_auth_ref()
-        auth_details = get_auth_details()
-        keystone = get_keystone_client(auth_ref)
-
-        if not token:
-            token = keystone.auth_token
-        if not endpoint:
-            endpoint = get_endpoint_url_for_service('image',
-                                                    auth_ref,
-                                                    get_endpoint_type(
-                                                        auth_details))
-
-        glance = g_client.Client('1', endpoint=endpoint, token=token)
-
-        try:
-            # We don't want to be pulling massive lists of images every time we
-            # run
-            image = glance.images.list(limit=1)
-            # Exceptions are only thrown when we iterate over image
-            [i.id for i in image]
-        except g_exc.HTTPUnauthorized:
-            auth_ref = force_reauth()
-            keystone = get_keystone_client(auth_ref)
-            token = keystone.auth_token
-
-            glance = get_glance_client(token, endpoint, previous_tries + 1)
-        # we only want to pass HTTPException back to the calling poller
-        # since this encapsulates all of our actual API failures. Other
-        # exceptions will be treated as script/environmental issues and
-        # sent to status_err
-        except g_exc.HTTPException:
-            raise
-        except Exception as e:
-            status_err(str(e))
-
-        return glance
-
 try:
     from novaclient import client as nova_client
     from novaclient.client import exceptions as nova_exc
@@ -195,76 +104,82 @@ else:
         return nova
 
 try:
-    from keystoneclient import exceptions as k_exc
-    from keystoneclient.v2_0 import client as k2_client
-    from keystoneclient.v3 import client as k3_client
+    from openstack import connection
+#    from keystoneclient import exceptions as k_exc
+#    from keystoneclient.v2_0 import client as k2_client
+#    from keystoneclient.v3 import client as k3_client
 except ImportError:
-    def keystone_auth(*args, **kwargs):
-        status_err('Cannot import keystoneclient')
+#    def keystone_auth(*args, **kwargs):
+#        status_err('Cannot import keystoneclient')
 
-    def get_keystone_client(*args, **kwargs):
-        status_err('Cannot import keystoneclient')
+#    def get_keystone_client(*args, **kwargs):
+#        status_err('Cannot import keystoneclient')
+    def get_openstack_conn(*args, **kwargs):
+        status_err('Cannot import openstacksdk')
 else:
-    def keystone_auth(auth_details):
-        try:
-            if auth_details['OS_AUTH_URL'].endswith('v3'):
-                k_client = k3_client
-            else:
-                k_client = k2_client
-            tenant_name = auth_details['OS_TENANT_NAME']
-            keystone = k_client.Client(username=auth_details['OS_USERNAME'],
-                                       password=auth_details['OS_PASSWORD'],
-                                       tenant_name=tenant_name,
-                                       auth_url=auth_details['OS_AUTH_URL'])
-        except Exception as e:
-            status_err(str(e))
+#    def keystone_auth(auth_details):
+#        try:
+#            if auth_details['OS_AUTH_URL'].endswith('v3'):
+#                k_client = k3_client
+#            else:
+#                k_client = k2_client
+#            tenant_name = auth_details['OS_TENANT_NAME']
+#            keystone = k_client.Client(username=auth_details['OS_USERNAME'],
+#                                       password=auth_details['OS_PASSWORD'],
+#                                       tenant_name=tenant_name,
+#                                       auth_url=auth_details['OS_AUTH_URL'])
+#        except Exception as e:
+#            status_err(str(e))
+#
+#        try:
+#            with open(TOKEN_FILE, 'w') as token_file:
+#                json.dump(keystone.auth_ref, token_file)
+#        except IOError:
+#            # if we can't write the file we go on
+#            pass
+#
+#        return keystone.auth_ref
 
-        try:
-            with open(TOKEN_FILE, 'w') as token_file:
-                json.dump(keystone.auth_ref, token_file)
-        except IOError:
-            # if we can't write the file we go on
-            pass
-
-        return keystone.auth_ref
-
-    def get_keystone_client(auth_ref=None, endpoint=None, previous_tries=0):
-        if previous_tries > 3:
-            return None
-
-        # first try to use auth details from auth_ref so we
-        # don't need to auth with keystone every time
-        if not auth_ref:
-            auth_ref = get_auth_ref()
-
-        auth_version = auth_ref['version']
-        if not endpoint:
-            endpoint = get_endpoint_url_for_service('identity', auth_ref,
-                                                    'admin',
-                                                    version=auth_version)
-        if auth_version == 'v3':
-            k_client = k3_client
-        else:
-            k_client = k2_client
-        keystone = k_client.Client(auth_ref=auth_ref, endpoint=endpoint)
-
-        try:
-            # This should be a rather light-weight call that validates we're
-            # actually connected/authenticated.
-            keystone.services.list()
-        except (k_exc.AuthorizationFailure, k_exc.Unauthorized):
-            # Force an update of auth_ref
-            auth_ref = force_reauth()
-            keystone = get_keystone_client(auth_ref,
-                                           endpoint,
-                                           previous_tries + 1)
-        except (k_exc.HttpServerError, k_exc.ClientException):
-            raise
-        except Exception as e:
-            status_err(str(e))
-
-        return keystone
-
+#    def get_keystone_client(auth_ref=None, endpoint=None, previous_tries=0):
+#        if previous_tries > 3:
+#            return None
+#
+#        # first try to use auth details from auth_ref so we
+#        # don't need to auth with keystone every time
+#        if not auth_ref:
+#            auth_ref = get_auth_ref()
+#
+#        auth_version = auth_ref['version']
+#        if not endpoint:
+#            endpoint = get_endpoint_url_for_service('identity', auth_ref,
+#                                                    'admin',
+#                                                    version=auth_version)
+#        if auth_version == 'v3':
+#            k_client = k3_client
+#        else:
+#            k_client = k2_client
+#        keystone = k_client.Client(auth_ref=auth_ref, endpoint=endpoint)
+#
+#        try:
+#            # This should be a rather light-weight call that validates we're
+#            # actually connected/authenticated.
+#            keystone.services.list()
+#        except (k_exc.AuthorizationFailure, k_exc.Unauthorized):
+#            # Force an update of auth_ref
+#            auth_ref = force_reauth()
+#            keystone = get_keystone_client(auth_ref,
+#                                           endpoint,
+#                                           previous_tries + 1)
+#        except (k_exc.HttpServerError, k_exc.ClientException):
+#            raise
+#        except Exception as e:
+#            status_err(str(e))
+#
+#        return keystone
+    def get_openstack_conn():
+        # There is no need to get auth_details any more.
+        # We can just take the information from the cloud.yml file
+        return connection.from_config("default")
 
 try:
     from neutronclient.common import exceptions as n_exc

@@ -19,9 +19,7 @@ import collections
 import ipaddr
 import time
 
-from glanceclient import exc as exc
-from maas_common import get_auth_ref
-from maas_common import get_glance_client
+from maas_common import get_openstack_conn
 from maas_common import metric
 from maas_common import metric_bool
 from maas_common import print_output
@@ -32,17 +30,9 @@ from maas_common import status_ok
 IMAGE_STATUSES = ['active', 'queued', 'killed']
 
 
-def check(auth_ref, args):
-    GLANCE_ENDPOINT = (
-        'http://{ip}:9292/v1'.format(ip=args.ip)
-    )
-
+def check(args):
     try:
-        if args.ip:
-            glance = get_glance_client(endpoint=GLANCE_ENDPOINT)
-        else:
-            glance = get_glance_client()
-
+        conn = get_openstack_conn()
         is_up = True
     except exc.HTTPException:
         is_up = False
@@ -52,11 +42,10 @@ def check(auth_ref, args):
     else:
         # time something arbitrary
         start = time.time()
-        glance.images.list(search_opts={'all_tenants': 1})
+        images = conn.image.images()
         end = time.time()
         milliseconds = (end - start) * 1000
         # gather some metrics
-        images = glance.images.list(search_opts={'all_tenants': 1})
         status_count = collections.Counter([s.status for s in images])
 
     status_ok()
@@ -76,16 +65,12 @@ def check(auth_ref, args):
 
 
 def main(args):
-    auth_ref = get_auth_ref()
-    check(auth_ref, args)
+    check(args)
 
 
 if __name__ == "__main__":
     with print_output():
         parser = argparse.ArgumentParser(description="Check Glance API against"
                                          " local or remote address")
-        parser.add_argument('ip', nargs='?',
-                            type=ipaddr.IPv4Address,
-                            help='Optional Glance API server address')
         args = parser.parse_args()
         main(args)

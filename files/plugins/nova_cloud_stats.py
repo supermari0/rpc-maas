@@ -19,8 +19,7 @@ import collections
 
 import ipaddr
 from maas_common import get_auth_ref
-from maas_common import get_keystone_client
-from maas_common import get_nova_client
+from maas_common import get_openstack_conn
 from maas_common import metric
 from maas_common import print_output
 from maas_common import status_err
@@ -61,20 +60,9 @@ stats_mapping = {
 
 
 def check(auth_ref, args):
-    keystone = get_keystone_client(auth_ref)
-    tenant_id = keystone.tenant_id
-
-    COMPUTE_ENDPOINT = (
-        'http://{ip}:8774/v2.1/{tenant_id}'
-        .format(ip=args.ip, tenant_id=tenant_id)
-    )
 
     try:
-        if args.ip:
-            nova = get_nova_client(bypass_url=COMPUTE_ENDPOINT)
-        else:
-            nova = get_nova_client()
-
+        conn = get_openstack_conn()
     except Exception as e:
         status_err(str(e))
     else:
