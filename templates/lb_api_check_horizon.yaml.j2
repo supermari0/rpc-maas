@@ -10,9 +10,15 @@ target_hostname   : "{{ ip_address }}"
 details           :
     url           : "{{ maas_horizon_scheme | default(maas_scheme)}}://{{ ip_address }}:443/auth/login"
 monitoring_zones_poll:
+{% if maas_private_monitoring_zones | length > 0 %}
+{% for zone in maas_private_monitoring_zones %}
+  - {{ zone }}
+{% endfor %}
+{% else %}
 {% for zone in maas_monitoring_zones %}
   - {{ zone }}
 {% endfor %}
+{% endif %}
 alarms            :
     lb_api_alarm_horizon     :
         label               : lb_api_alarm_horizon

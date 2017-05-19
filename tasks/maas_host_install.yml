@@ -82,3 +82,24 @@
   until: install_pip_packages|success
   retries: 5
   delay: 2
+
+- name: Assign agent ID to entity
+  raxmon:
+    cmd: assign_agent_to_entity
+    entity: "{{ entity_name }}"
+    venv_bin: "{{ maas_venv_bin }}"
+
+- name: Create agent token
+  raxmon:
+    cmd: create_agent_token
+    entity: "{{ entity_name }}"
+    venv_bin: "{{ maas_venv_bin }}"
+  register: agent_token
+  when:
+    - maas_agent_token is not defined
+
+- name: Set agent token fact
+  set_fact:
+    maas_agent_token: "{{ agent_token.id }}"
+  when:
+    - maas_agent_token is not defined

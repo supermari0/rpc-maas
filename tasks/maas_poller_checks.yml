@@ -1,5 +1,5 @@
 ---
-# Copyright 2015, Rackspace US, Inc.
+# Copyright 2017, Rackspace US, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,16 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-- include: maas_host_install.yml
+- include: ensure_remote_checks.yml
   vars:
-    entity_name: "{{ inventory_hostname }}{{ maas_fqdn_extension }}"
+    ip_address: "{{ internal_vip_address }}"
+    checks: "{{ openstack_service_remote_checks_list }}"
+    check_disabled: "false"
 
-- include: maas_host_agent_install_local.yml
-
-- include: maas_host_agent_install_remote.yml
-  when:
-    - maas_use_api | bool
-
-- include: maas_host_poller_install.yml
+- include: ensure_poller_checks.yml
   vars:
-    entity_name: "{{ inventory_hostname }}{{ maas_fqdn_extension }}"
+    # TODO(mariojv) Is this the primary ip? Maybe rename this var to be more
+    # generic?
+    ip_address: "{{ maas_external_ip_address }}"
+    checks: "{{ raxmon_poller_check_list }}"
+    check_disabled: "false"

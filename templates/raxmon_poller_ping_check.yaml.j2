@@ -1,0 +1,29 @@
+type              : remote.ping
+label             : "Ping"
+# TODO(mariojv) Templatize period/timeout like in lb_api checks
+period            : "60"
+timeout           : "15"
+# TODO(mariojv) May want to also templatize disabled like in lb_api checks
+disabled          : "false"
+target_hostname   : "{{ ip_address }}"
+details           :
+  count           : {{ raxmon_poller_ping_check_count }}
+monitoring_zones_poll:
+{% for zone in maas_private_monitoring_zones %}
+  - {{ zone }}
+{% endfor %}
+metadata          :
+  event-type-override: "ping"
+alarms            :
+# TODO(mariojv) Include something else in label/alarm to identify? Inventory
+# hostname?
+  Packet_loss               :
+        label               : "Packet Loss"
+        notification_plan_id: "{{ maas_notification_plan }}"
+        disabled            : false
+        criteria            : |
+            :set consecutiveCount=3
+            if (metric['available'] > 80) {
+                return new AlarmStatus(OK, 'Ping responds as expected');
+            }
+            return new AlarmStatus(CRITICAL, 'Packet loss has occurred');

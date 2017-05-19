@@ -1,0 +1,46 @@
+---
+# Copyright 2017, Rackspace US, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: Ensure monitoring poller installed if private zone configured
+  apt:
+    pkg: "{{ maas_poller_apt_package }}"
+    state: "{{ maas_package_state }}"
+  when:
+    - maas_private_monitoring_zones | length > 0
+    - inventory_hostname in groups['shared-infra_hosts']
+
+- name: Generate raxmon poller config
+  template:
+    src: rackspace-monitoring-poller.cfg
+    dest: /etc/rackspace-monitoring-poller.cfg
+    mode: 0600
+    owner: root
+    group: root
+
+- name: Enable raxmon poller via config
+  copy:
+    src: files/rackspace-monitoring-poller-enabled
+    dest: /etc/default/rackspace-monitoring-poller
+    mode: 0600
+    owner: root
+    group: root
+
+- name: Start raxmon poller
+  # The poller gets deployed to all infra_hosts, but only enabled on one.
+  # TODO(briancurtin): actually I think only some checks get deployed to one?
+  service:
+    name: rackspace-monitoring-poller
+    state: started
+    enabled: yes

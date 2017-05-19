@@ -10,9 +10,15 @@ target_hostname   : "{{ ip_address }}"
 details           :
     url           : "{{ maas_swift_proxy_scheme | default(maas_scheme)}}://{{ ip_address }}:8080/healthcheck"
 monitoring_zones_poll:
+{% if maas_private_monitoring_zones | length > 0 %}
+{% for zone in maas_private_monitoring_zones %}
+  - {{ zone }}
+{% endfor %}
+{% else %}
 {% for zone in maas_monitoring_zones %}
   - {{ zone }}
 {% endfor %}
+{% endif %}
 alarms            :
     lb_api_alarm_swift_healthcheck:
         label               : lb_api_alarm_swift_healthcheck

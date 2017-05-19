@@ -191,6 +191,12 @@ maas_monitoring_zones:
   - mzhkg
 
 #
+# maas_private_monitoring_zones: Specifies the list of private zones for use with
+#                                rackspace-monitoring-poller.
+#
+maas_private_monitoring_zones: []
+
+#
 # maas_fqdn_extension: Sets the fully-qualified domain name (FQDN) extension that will be appended
 #                      to the short names for hosts that are specified in rpc_user_config. This
 #                      avoids the need to specify extremely long container names.
@@ -511,21 +517,33 @@ infra_service_local_checks_list:
 holland_service_local_checks_list:
   - { name: "holland_local_check", group: "galera" }
 
+# Private network monitoring checks
+raxmon_poller_check_list:
+  - { name: "raxmon_poller_ping_check", group: "shared-infra_hosts" }
+  - { name: "raxmon_poller_ssh_check", group: "shared-infra_hosts" }
+
 # Set this to 'false' to set the lb checks against ALL service infra hosts.
 # Checks will be setup but disabled on all but host[0] when this is 'true'.
 lb_check_on_single_host: true
 
 raxmon_repo_url: "http://stable.packages.cloudmonitoring.rackspace.com/ubuntu-{{ansible_distribution_version}}-x86_64"
 
+# From https://github.com/racker/rackspace-monitoring-poller#apt
+raxmon_poller_repo_url: "http://stable.poller.packages.cloudmonitoring.rackspace.com/debian"
+
 maas_apt_keys:
   - { url: "https://monitoring.api.rackspacecloud.com/pki/agent/linux.asc", state: "present" }
 
 maas_apt_repos:
   - { repo: "deb {{ raxmon_repo_url }} cloudmonitoring main", state: "present" }
+  - { repo: "deb {{ raxmon_poller_repo_url }} cloudmonitoring main", state: "present" }
 
 maas_apt_packages:
   - rackspace-monitoring-agent
   - mariadb-client
+
+maas_poller_apt_package:
+  - rackspace-monitoring-poller
 
 #
 # maas_requires_pip_packages: Pip packages needed outside the virtualenv
@@ -641,6 +659,13 @@ maas_agent_upgrade: true
 # Options are 'present' and 'latest'
 maas_package_state: "latest"
 maas_pip_package_state: "latest"
+
+#
+# raxmon_poller_ping_check_count: Number of times to try ping check in private
+#                                 network monitoring case. Must be integer
+#                                 1-15 inclusive.
+#
+raxmon_poller_ping_check_count: 6
 
 # Swift object access check
 swift_accesscheck_enabled: true

@@ -34,6 +34,8 @@
     - maas-install
 
 - include: maas_infra.yml
+  when:
+    - maas_private_monitoring_zones | length == 0
   tags:
     - maas-checks
     - maas-checks-infra
@@ -41,11 +43,14 @@
 - include: maas_host_monitoring.yml
   when:
     - inventory_hostname in groups['hosts']
+    - maas_private_monitoring_zones | length == 0
   tags:
     - maas-checks
     - maas-checks-hosts
 
 - include: maas_openstack.yml
+  when:
+    - maas_private_monitoring_zones | length == 0
   tags:
     - maas-checks
     - maas-checks-openstack
@@ -54,14 +59,25 @@
   when:
     - "'ceph_all' in groups"
     - inventory_hostname in groups['ceph_all']
+    - maas_private_monitoring_zones | length == 0
   tags:
     - maas-checks
     - maas-checks-ceph
 
 - include: maas_checks.yml
+  when:
+    - maas_private_monitoring_zones | length == 0
   tags:
     - maas-checks
     - maas-checks-extra
+
+# In the private network monitoring case, set up checks separately
+- include: maas_poller_checks.yml
+  when:
+    - maas_private_monitoring_zones | length > 0
+  # TODO(mariojv) Tag needed?
+  tags:
+    - maas-checks
 
 - include: maas_restart_raxmon.yml
   when:
