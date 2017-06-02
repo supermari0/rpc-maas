@@ -16,10 +16,8 @@
 - name: Ensure monitoring poller installed if private zone configured
   apt:
     pkg: "{{ maas_poller_apt_package }}"
+    update_cache: yes
     state: "{{ maas_package_state }}"
-  when:
-    - maas_private_monitoring_zones | length > 0
-    - inventory_hostname in groups['shared-infra_hosts']
 
 - name: Generate raxmon poller config
   template:
@@ -38,8 +36,6 @@
     group: root
 
 - name: Start raxmon poller
-  # The poller gets deployed to all infra_hosts, but only enabled on one.
-  # TODO(briancurtin): actually I think only some checks get deployed to one?
   service:
     name: rackspace-monitoring-poller
     state: started

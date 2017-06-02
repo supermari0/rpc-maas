@@ -24,5 +24,8 @@
     - maas_use_api | bool
 
 - include: maas_host_poller_install.yml
+  when:
+    - maas_private_monitoring_zones | length > 0
+    - inventory_hostname in groups['shared-infra_hosts']
   vars:
     entity_name: "{{ inventory_hostname }}{{ maas_fqdn_extension }}"
